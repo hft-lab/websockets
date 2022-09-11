@@ -105,9 +105,8 @@ class CommonTests:
         original_drain = self.protocol._drain
 
         async def delayed_drain():
-            await asyncio.sleep(
-                delay, loop=self.loop if sys.version_info[:2] < (3, 8) else None
-            )
+            kwargs = {"loop": loop} if sys.version_info[:2] < (3, 8) else {}
+            await asyncio.sleep(**kwargs)
             await original_drain()
 
         self.protocol._drain = delayed_drain

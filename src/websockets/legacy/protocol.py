@@ -151,9 +151,8 @@ class WebSocketCommonProtocol(asyncio.Protocol):
         self._paused = False
         self._drain_waiter: Optional[asyncio.Future[None]] = None
 
-        self._drain_lock = asyncio.Lock(
-            loop=loop if sys.version_info[:2] < (3, 8) else None
-        )
+        kwargs = {"loop": loop} if sys.version_info[:2] < (3, 8) else {}
+        self._drain_lock = asyncio.Lock(**kwargs)
 
         # This class implements the data transfer and closing handshake, which
         # are shared between the client-side and the server-side.
@@ -231,9 +230,8 @@ class WebSocketCommonProtocol(asyncio.Protocol):
                 #     write(...); yield from drain()
                 # in a loop would never call connection_lost(), so it
                 # would not see an error when the socket is closed.
-                await asyncio.sleep(
-                    0, loop=self.loop if sys.version_info[:2] < (3, 8) else None
-                )
+                kwargs = {"loop": loop} if sys.version_info[:2] < (3, 8) else {}
+                await asyncio.sleep(0, **kwargs)
         await self._drain_helper()
 
     def connection_open(self) -> None:
@@ -401,10 +399,11 @@ class WebSocketCommonProtocol(asyncio.Protocol):
             try:
                 # If asyncio.wait() is canceled, it doesn't cancel
                 # pop_message_waiter and self.transfer_data_task.
+                kwargs = {"loop": loop} if sys.version_info[:2] < (3, 8) else {}
                 await asyncio.wait(
                     [pop_message_waiter, self.transfer_data_task],
-                    loop=self.loop if sys.version_info[:2] < (3, 8) else None,
                     return_when=asyncio.FIRST_COMPLETED,
+                    **kwargs,
                 )
             finally:
                 self._pop_message_waiter = None
@@ -596,10 +595,11 @@ class WebSocketCommonProtocol(asyncio.Protocol):
 
         """
         try:
+            kwargs = {"loop": loop} if sys.version_info[:2] < (3, 8) else {}
             await asyncio.wait_for(
                 self.write_close_frame(serialize_close(code, reason)),
                 self.close_timeout,
-                loop=self.loop if sys.version_info[:2] < (3, 8) else None,
+                **kwargs,
             )
         except asyncio.TimeoutError:
             # If the close frame cannot be sent because the send buffers
@@ -617,10 +617,11 @@ class WebSocketCommonProtocol(asyncio.Protocol):
         try:
             # If close() is canceled during the wait, self.transfer_data_task
             # is canceled before the timeout elapses.
+            kwargs = {"loop": loop} if sys.version_info[:2] < (3, 8) else {}
             await asyncio.wait_for(
                 self.transfer_data_task,
                 self.close_timeout,
-                loop=self.loop if sys.version_info[:2] < (3, 8) else None,
+                **kwargs,
             )
         except (asyncio.TimeoutError, asyncio.CancelledError):
             pass
@@ -1038,12 +1039,10 @@ class WebSocketCommonProtocol(asyncio.Protocol):
         if self.ping_interval is None:
             return
 
+        kwargs = {"loop": loop} if sys.version_info[:2] < (3, 8) else {}
         try:
             while True:
-                await asyncio.sleep(
-                    self.ping_interval,
-                    loop=self.loop if sys.version_info[:2] < (3, 8) else None,
-                )
+                await asyncio.sleep(self.ping_interval, **kwargs)
 
                 # ping() raises CancelledError if the connection is closed,
                 # when close_connection() cancels self.keepalive_ping_task.
@@ -1058,7 +1057,7 @@ class WebSocketCommonProtocol(asyncio.Protocol):
                         await asyncio.wait_for(
                             pong_waiter,
                             self.ping_timeout,
-                            loop=self.loop if sys.version_info[:2] < (3, 8) else None,
+                            **kwargs,
                         )
                     except asyncio.TimeoutError:
                         logger.debug("%s ! timed out waiting for pong", self.side)
@@ -1154,11 +1153,12 @@ class WebSocketCommonProtocol(asyncio.Protocol):
 
         """
         if not self.connection_lost_waiter.done():
+            kwargs = {"loop": loop} if sys.version_info[:2] < (3, 8) else {}
             try:
                 await asyncio.wait_for(
                     asyncio.shield(self.connection_lost_waiter),
                     self.close_timeout,
-                    loop=self.loop if sys.version_info[:2] < (3, 8) else None,
+                    **kwargs,
                 )
             except asyncio.TimeoutError:
                 pass
